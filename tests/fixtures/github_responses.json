@@ -1,0 +1,327 @@
+{
+  "pull_request_open": {
+    "number": 42,
+    "title": "Fix: Payment service timeout issue",
+    "state": "OPEN",
+    "url": "https://github.com/acme-corp/payment-service/pull/42",
+    "id": "PR_kwDOABCDEF",
+    "author": {
+      "login": "developer123"
+    },
+    "baseRefName": "main",
+    "headRefName": "fix/payment-timeout",
+    "mergeable": "MERGEABLE",
+    "commits": {
+      "nodes": [
+        {
+          "commit": {
+            "statusCheckRollup": {
+              "state": "SUCCESS",
+              "contexts": {
+                "nodes": [
+                  {
+                    "state": "SUCCESS",
+                    "context": "ci/unit-tests"
+                  },
+                  {
+                    "conclusion": "SUCCESS",
+                    "name": "ci/integration-tests"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "reviews": {
+      "nodes": [
+        {
+          "state": "APPROVED",
+          "author": {
+            "login": "senior-dev"
+          }
+        }
+      ]
+    },
+    "labels": {
+      "nodes": [
+        {
+          "name": "auto-merge"
+        },
+        {
+          "name": "staging"
+        }
+      ]
+    }
+  },
+  "pull_request_ci_pending": {
+    "number": 43,
+    "title": "Feature: Add new payment method",
+    "state": "OPEN",
+    "url": "https://github.com/acme-corp/payment-service/pull/43",
+    "id": "PR_kwDOABCDEG",
+    "author": {
+      "login": "developer456"
+    },
+    "baseRefName": "main",
+    "headRefName": "feature/new-payment",
+    "mergeable": "MERGEABLE",
+    "commits": {
+      "nodes": [
+        {
+          "commit": {
+            "statusCheckRollup": {
+              "state": "PENDING",
+              "contexts": {
+                "nodes": [
+                  {
+                    "state": "PENDING",
+                    "context": "ci/unit-tests"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "reviews": {
+      "nodes": []
+    },
+    "labels": {
+      "nodes": [
+        {
+          "name": "auto-merge"
+        },
+        {
+          "name": "staging"
+        }
+      ]
+    }
+  },
+  "pull_request_ci_failed": {
+    "number": 44,
+    "title": "Refactor: Update database schema",
+    "state": "OPEN",
+    "url": "https://github.com/acme-corp/payment-service/pull/44",
+    "id": "PR_kwDOABCDEH",
+    "author": {
+      "login": "developer789"
+    },
+    "baseRefName": "main",
+    "headRefName": "refactor/db-schema",
+    "mergeable": "MERGEABLE",
+    "commits": {
+      "nodes": [
+        {
+          "commit": {
+            "statusCheckRollup": {
+              "state": "FAILURE",
+              "contexts": {
+                "nodes": [
+                  {
+                    "state": "FAILURE",
+                    "context": "ci/unit-tests"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "reviews": {
+      "nodes": []
+    },
+    "labels": {
+      "nodes": [
+        {
+          "name": "auto-merge"
+        },
+        {
+          "name": "staging"
+        }
+      ]
+    }
+  },
+  "pull_request_conflicts": {
+    "number": 45,
+    "title": "Update: Dependencies",
+    "state": "OPEN",
+    "url": "https://github.com/acme-corp/payment-service/pull/45",
+    "id": "PR_kwDOABCDEI",
+    "author": {
+      "login": "dependabot[bot]"
+    },
+    "baseRefName": "main",
+    "headRefName": "dependabot/npm/lodash-4.17.21",
+    "mergeable": "CONFLICTING",
+    "commits": {
+      "nodes": [
+        {
+          "commit": {
+            "statusCheckRollup": {
+              "state": "SUCCESS",
+              "contexts": {
+                "nodes": [
+                  {
+                    "state": "SUCCESS",
+                    "context": "ci/unit-tests"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "reviews": {
+      "nodes": []
+    },
+    "labels": {
+      "nodes": [
+        {
+          "name": "dependencies"
+        }
+      ]
+    }
+  },
+  "pull_request_production": {
+    "number": 46,
+    "title": "Release: v1.2.3",
+    "state": "OPEN",
+    "url": "https://github.com/acme-corp/payment-service/pull/46",
+    "id": "PR_kwDOABCDEJ",
+    "author": {
+      "login": "release-bot"
+    },
+    "baseRefName": "main",
+    "headRefName": "release/v1.2.3",
+    "mergeable": "MERGEABLE",
+    "commits": {
+      "nodes": [
+        {
+          "commit": {
+            "statusCheckRollup": {
+              "state": "SUCCESS",
+              "contexts": {
+                "nodes": [
+                  {
+                    "state": "SUCCESS",
+                    "context": "ci/unit-tests"
+                  },
+                  {
+                    "conclusion": "SUCCESS",
+                    "name": "ci/integration-tests"
+                  },
+                  {
+                    "conclusion": "SUCCESS",
+                    "name": "security/scan"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "reviews": {
+      "nodes": [
+        {
+          "state": "APPROVED",
+          "author": {
+            "login": "senior-dev"
+          }
+        },
+        {
+          "state": "APPROVED",
+          "author": {
+            "login": "tech-lead"
+          }
+        }
+      ]
+    },
+    "labels": {
+      "nodes": [
+        {
+          "name": "production"
+        },
+        {
+          "name": "release"
+        }
+      ]
+    }
+  },
+  "graphql_prs_response": {
+    "repository": {
+      "pullRequests": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "graphql_merge_response": {
+    "mergePullRequest": {
+      "pullRequest": {
+        "number": 42,
+        "merged": true,
+        "mergedAt": "2026-02-27T12:00:00Z"
+      }
+    }
+  },
+  "graphql_close_response": {
+    "closePullRequest": {
+      "pullRequest": {
+        "number": 42,
+        "closed": true,
+        "closedAt": "2026-02-27T12:00:00Z"
+      }
+    }
+  },
+  "graphql_comment_response": {
+    "addComment": {
+      "commentEdge": {
+        "node": {
+          "id": "IC_kwDOABCDEF",
+          "body": "Test comment"
+        }
+      }
+    }
+  },
+  "graphql_labels_response": {
+    "repository": {
+      "labels": {
+        "nodes": [
+          {
+            "id": "LA_kwDOABCDEF1",
+            "name": "needs-human-approval"
+          },
+          {
+            "id": "LA_kwDOABCDEF2",
+            "name": "ci-failed"
+          }
+        ]
+      }
+    }
+  },
+  "ai_decision_merge": {
+    "action": "merge",
+    "reason": "CI passed, no conflicts, all checks successful"
+  },
+  "ai_decision_wait": {
+    "action": "wait",
+    "reason": "CI is still pending"
+  },
+  "ai_decision_escalate": {
+    "action": "escalate",
+    "reason": "CI failed - requires investigation"
+  },
+  "ai_decision_close": {
+    "action": "close",
+    "reason": "Application health restored"
+  }
+}
