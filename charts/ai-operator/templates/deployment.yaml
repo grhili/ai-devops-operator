@@ -27,6 +27,10 @@ spec:
       {{- if .Values.rbac.create }}
       serviceAccountName: {{ .Values.rbac.serviceAccountName }}
       {{- end }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
@@ -86,6 +90,21 @@ spec:
             - name: LOG_FORMAT
               value: {{ .Values.logging.format | quote }}
 
+            # OpenTelemetry tracing configuration
+            {{- if .Values.observability.tracing.enabled }}
+            - name: TRACING_ENABLED
+              value: "true"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.observability.tracing.endpoint | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: {{ .Values.observability.tracing.serviceName | quote }}
+            - name: OTEL_SAMPLING_RATE
+              value: {{ .Values.observability.tracing.samplingRate | quote }}
+            {{- else }}
+            - name: TRACING_ENABLED
+              value: "false"
+            {{- end }}
+
             # Reconciliation configuration
             - name: DEFAULT_RECONCILIATION_INTERVAL
               value: {{ .Values.reconciliation.defaultIntervalSeconds | quote }}
@@ -101,6 +120,17 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+
+            # ConfigMap configuration
+            {{- if .Values.config.useConfigMap }}
+            - name: USE_CONFIGMAP
+              value: "true"
+            - name: CONFIGMAP_NAME
+              value: {{ .Values.config.configMapName | default "ai-operator-config" | quote }}
+            {{- else }}
+            - name: USE_CONFIGMAP
+              value: "false"
+            {{- end }}
 
           {{- if .Values.healthcheck.enabled }}
           livenessProbe:

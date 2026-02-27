@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.config.configMapName | default (include "ai-operator.fullname" .) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "ai-operator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+data:
+  # GitHub Configuration
+  github.organization: {{ .Values.github.organization | quote }}
+  github.repositories: {{ join "," .Values.github.repositories | quote }}
+  github.graphql_endpoint: {{ .Values.github.graphqlEndpoint | quote }}
+
+  # AI Configuration
+  ai.model: {{ .Values.ai.model | quote }}
+  ai.max_tokens: {{ .Values.ai.maxTokens | quote }}
+  ai.temperature: {{ .Values.ai.temperature | quote }}
+
+  # Reconciliation Configuration
+  reconciliation.default_interval: {{ .Values.reconciliation.defaultIntervalSeconds | quote }}
+  reconciliation.max_prs_per_cycle: {{ .Values.reconciliation.maxPRsPerCycle | quote }}
+  reconciliation.retry_attempts: {{ .Values.reconciliation.retryAttempts | quote }}
+  reconciliation.retry_backoff: {{ .Values.reconciliation.retryBackoffSeconds | quote }}
+
+  # Argo CD Configuration
+  {{- if .Values.argocd.enabled }}
+  argocd.enabled: "true"
+  argocd.url: {{ .Values.argocd.url | quote }}
+  {{- else }}
+  argocd.enabled: "false"
+  {{- end }}
+
+  # Observability
+  {{- if .Values.observability.tracing.enabled }}
+  tracing.enabled: "true"
+  tracing.endpoint: {{ .Values.observability.tracing.endpoint | quote }}
+  tracing.sampling_rate: {{ .Values.observability.tracing.samplingRate | quote }}
+  {{- else }}
+  tracing.enabled: "false"
+  {{- end }}
+
+  # Logging
+  log.level: {{ .Values.logging.level | quote }}
+  log.format: {{ .Values.logging.format | quote }}
+

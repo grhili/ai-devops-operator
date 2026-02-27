@@ -1,0 +1,79 @@
+{{- if .Values.rules.enabled }}
+{{- if .Values.rules.stagingAutomerge.enabled }}
+---
+apiVersion: aioperator.io/v1alpha1
+kind: PRReconciliationRule
+metadata:
+  name: {{ .Values.rules.stagingAutomerge.name | default "staging-automerge" }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    environment: staging
+    automation-level: high
+    app.kubernetes.io/name: {{ include "ai-operator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  selector:
+    labels:
+      include: {{ .Values.rules.stagingAutomerge.selector.labels.include | toJson }}
+      exclude: {{ .Values.rules.stagingAutomerge.selector.labels.exclude | toJson }}
+    baseBranch: {{ .Values.rules.stagingAutomerge.selector.baseBranch | default "main" | quote }}
+  instruction: {{ .Values.rules.stagingAutomerge.instruction | quote }}
+  argocdEnabled: {{ .Values.rules.stagingAutomerge.argocdEnabled | default false }}
+  {{- if .Values.rules.stagingAutomerge.argocdEnabled }}
+  argocdAppNamePattern: {{ .Values.rules.stagingAutomerge.argocdAppNamePattern | default "{{repository}}-staging" | quote }}
+  {{- end }}
+  reconciliationInterval: {{ .Values.rules.stagingAutomerge.reconciliationInterval | default 30 }}
+  mergeMethod: {{ .Values.rules.stagingAutomerge.mergeMethod | default "SQUASH" | quote }}
+{{- end }}
+
+{{- if .Values.rules.productionApproval.enabled }}
+---
+apiVersion: aioperator.io/v1alpha1
+kind: PRReconciliationRule
+metadata:
+  name: {{ .Values.rules.productionApproval.name | default "production-approval" }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    environment: production
+    automation-level: low
+    app.kubernetes.io/name: {{ include "ai-operator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  selector:
+    labels:
+      include: {{ .Values.rules.productionApproval.selector.labels.include | toJson }}
+      exclude: {{ .Values.rules.productionApproval.selector.labels.exclude | toJson }}
+    baseBranch: {{ .Values.rules.productionApproval.selector.baseBranch | default "main" | quote }}
+  instruction: {{ .Values.rules.productionApproval.instruction | quote }}
+  argocdEnabled: {{ .Values.rules.productionApproval.argocdEnabled | default false }}
+  reconciliationInterval: {{ .Values.rules.productionApproval.reconciliationInterval | default 60 }}
+  mergeMethod: {{ .Values.rules.productionApproval.mergeMethod | default "SQUASH" | quote }}
+{{- end }}
+
+{{- if .Values.rules.dependabotAutomerge.enabled }}
+---
+apiVersion: aioperator.io/v1alpha1
+kind: PRReconciliationRule
+metadata:
+  name: {{ .Values.rules.dependabotAutomerge.name | default "dependabot-automerge" }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    automation: dependabot
+    automation-level: high
+    app.kubernetes.io/name: {{ include "ai-operator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  selector:
+    labels:
+      include: {{ .Values.rules.dependabotAutomerge.selector.labels.include | toJson }}
+      exclude: {{ .Values.rules.dependabotAutomerge.selector.labels.exclude | toJson }}
+    author: {{ .Values.rules.dependabotAutomerge.selector.author | default "dependabot[bot]" | quote }}
+    {{- if .Values.rules.dependabotAutomerge.selector.titlePattern }}
+    titlePattern: {{ .Values.rules.dependabotAutomerge.selector.titlePattern | quote }}
+    {{- end }}
+  instruction: {{ .Values.rules.dependabotAutomerge.instruction | quote }}
+  argocdEnabled: {{ .Values.rules.dependabotAutomerge.argocdEnabled | default false }}
+  reconciliationInterval: {{ .Values.rules.dependabotAutomerge.reconciliationInterval | default 20 }}
+  mergeMethod: {{ .Values.rules.dependabotAutomerge.mergeMethod | default "SQUASH" | quote }}
+{{- end }}
+{{- end }}
