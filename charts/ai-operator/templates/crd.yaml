@@ -1,0 +1,194 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: prreconciliationrules.aioperator.io
+spec:
+  group: aioperator.io
+  names:
+    kind: PRReconciliationRule
+    plural: prreconciliationrules
+    singular: prreconciliationrule
+    shortNames:
+      - prrule
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - selector
+                - instruction
+              properties:
+                # PR Selection Criteria
+                selector:
+                  type: object
+                  description: "Defines which PRs this rule applies to"
+                  properties:
+                    labels:
+                      type: object
+                      description: "Label-based PR filtering"
+                      properties:
+                        include:
+                          type: array
+                          description: "PRs must have ALL these labels"
+                          items:
+                            type: string
+                          example: ["auto-merge", "staging"]
+                        exclude:
+                          type: array
+                          description: "PRs with ANY of these labels are skipped"
+                          items:
+                            type: string
+                          example: ["do-not-merge", "wip"]
+                    titlePattern:
+                      type: string
+                      description: "Optional regex pattern for PR title (e.g., '^Rollback:')"
+                      example: "^Rollback:"
+                    baseBranch:
+                      type: string
+                      description: "Filter by base branch (e.g., 'main', 'develop')"
+                      example: "main"
+                    author:
+                      type: string
+                      description: "Filter by PR author username"
+                      example: "dependabot[bot]"
+
+                # AI Decision-Making Instruction
+                instruction:
+                  type: string
+                  description: |
+                    Natural language instruction/prompt for AI to decide PR action.
+
+                    Available template variables:
+                    - {{pr.title}} - PR title
+                    - {{pr.number}} - PR number
+                    - {{pr.labels}} - List of label names
+                    - {{pr.ciStatus}} - CI status (SUCCESS, FAILURE, PENDING, etc.)
+                    - {{pr.mergeable}} - Boolean: is PR mergeable?
+                    - {{pr.reviews}} - List of review objects with author and state
+                    - {{pr.author}} - PR author username
+                    - {{argocd.health}} - Optional: Argo CD application health status
+
+                    Expected AI output: JSON object with fields:
+                    - action: "merge" | "wait" | "escalate" | "close"
+                    - reason: "explanation of decision"
+                  example: |
+                    You are reviewing a pull request. Decide what action to take.
+
+                    **Context:**
+                    - PR #{{pr.number}}: {{pr.title}}
+                    - Labels: {{pr.labels}}
+                    - CI Status: {{pr.ciStatus}}
+                    - Mergeable: {{pr.mergeable}}
+                    - Argo CD Health: {{argocd.health}}
+
+                    **Rules:**
+                    - Auto-merge if: CI passed, mergeable, labeled "auto-merge"
+                    - Close if: Argo CD health is "Healthy"
+                    - Wait if: CI pending
+                    - Escalate otherwise
+
+                    Return JSON: {"action": "merge|wait|escalate|close", "reason": "..."}
+
+                # Optional: Argo CD Integration
+                argocdEnabled:
+                  type: boolean
+                  description: "Enable Argo CD health checks for this rule"
+                  default: false
+                  example: true
+
+                argocdAppNamePattern:
+                  type: string
+                  description: |
+                    Template pattern to derive Argo CD application name from PR metadata.
+
+                    Available variables:
+                    - {{repository}} - Repository name (without org)
+                    - {{environment}} - Extracted from PR labels (e.g., 'staging', 'production')
+                    - {{pr.number}} - PR number
+                  example: "{{repository}}-{{environment}}"
+
+                # Execution Settings
+                reconciliationInterval:
+                  type: integer
+                  description: "How often to reconcile PRs matching this rule (seconds)"
+                  default: 30
+                  minimum: 10
+                  maximum: 3600
+                  example: 60
+
+                # GitHub Settings
+                mergeMethod:
+                  type: string
+                  description: "Merge method to use when auto-merging"
+                  enum: ["MERGE", "SQUASH", "REBASE"]
+                  default: "SQUASH"
+                  example: "SQUASH"
+
+            status:
+              type: object
+              description: "Runtime status (managed by operator)"
+              properties:
+                lastReconciliationTime:
+                  type: string
+                  format: date-time
+                  description: "Last time this rule was processed"
+                processedPRCount:
+                  type: integer
+                  description: "Total PRs processed by this rule"
+                  minimum: 0
+                lastError:
+                  type: string
+                  description: "Last error message, if any"
+                conditions:
+                  type: array
+                  description: "Status conditions"
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                        description: "Condition type (Ready, Error, etc.)"
+                      status:
+                        type: string
+                        enum: ["True", "False", "Unknown"]
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                      message:
+                        type: string
+
+      additionalPrinterColumns:
+        - name: Selector
+          type: string
+          description: "PR selector summary"
+          jsonPath: .spec.selector.labels.include[0]
+        - name: Interval
+          type: integer
+          description: "Reconciliation interval (seconds)"
+          jsonPath: .spec.reconciliationInterval
+        - name: Argo CD
+          type: boolean
+          description: "Argo CD integration enabled"
+          jsonPath: .spec.argocdEnabled
+        - name: Last Reconciled
+          type: date
+          description: "Last reconciliation time"
+          jsonPath: .status.lastReconciliationTime
+        - name: PR Count
+          type: integer
+          description: "PRs processed"
+          jsonPath: .status.processedPRCount
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp

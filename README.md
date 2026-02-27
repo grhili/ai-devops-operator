@@ -1,311 +1,316 @@
-# AI DevOps Operator - Production-Ready Specifications
+# AI-Driven PR Reconciliation Operator
 
-[![Status](https://img.shields.io/badge/status-production--ready-green)](https://github.com/grhili/ai-devops-operator)
-[![Documentation](https://img.shields.io/badge/docs-complete-blue)](./ai-operator-architecture.md)
+[![Status](https://img.shields.io/badge/status-beta-yellow)](https://github.com/your-org/ai-operator)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**A Level 2 Autonomous System for Automated Rollback Pull Requests**
+**A Kubernetes-native operator that uses AI to automatically process pull requests based on natural language instructions.**
 
-This repository contains comprehensive, production-ready specifications for the AI DevOps Operator - an intelligent system that automatically detects degraded Kubernetes deployments managed by Argo CD and creates rollback pull requests with Level 2 autonomy (auto-merge in staging, human approval in production).
+## 🎯 Key Features
 
----
-
-## 📚 Documentation
-
-### Start Here
-- **[Architecture Overview](./ai-operator-architecture.md)** - System overview, components, design principles, and glossary (READ THIS FIRST)
-
-### Technical Specifications
-- **[MCP API Specification](./ai-operator-mcp-api-spec.md)** - Complete API schemas for GitHub, Kubernetes, and Argo CD integrations
-- **[Rollback Engine Technical Spec](./ai-rollback-engine-spec.md)** - FSM design, event schemas, algorithms, and module architecture
-- **[Governance & Level 2 Autonomy](./ai-operator-governance-spec.md)** - Safety invariants, audit logging, error handling, and RBAC
-
-### Operational Guides
-- **[Full Context & Operations](./ai-operator-full-context.md)** - Roles, PR workflows, CI rules, and worked examples
-- **[Deployment Guide](./ai-operator-deployment-guide.md)** - Kubernetes manifests, observability setup, and runbooks
-
-### Verification
-- **[Verification Summary](./VERIFICATION_SUMMARY.md)** - Consistency checks, completeness validation, and implementation readiness
-
----
-
-## 🎯 What is the AI DevOps Operator?
-
-The AI DevOps Operator is an autonomous system that:
-
-1. **Monitors** Argo CD applications every 10 seconds
-2. **Detects** persistent degradations (3 consecutive health checks = 30 seconds)
-3. **Identifies** stable rollback candidates from Git history (99% uptime requirement)
-4. **Creates** detailed rollback PRs with automated context
-5. **Auto-merges** in staging environments (if all 8 safety invariants pass)
-6. **Requires human approval** for production environments
-7. **Logs** all actions to immutable audit trail with correlation IDs
-
----
-
-## ✨ Key Features
-
-### Level 2 Autonomy
-- **Staging**: Fully automated rollback with strict safety conditions
-- **Production**: Human-in-the-loop approval required
-- **8 Safety Invariants**: Must all pass for auto-merge
-
-### Comprehensive Safety
-- ✅ Fail-safe defaults (any error → abort and alert)
-- ✅ Immutable audit trail (Elasticsearch, 90-day retention)
-- ✅ State recovery after crashes (etcd persistence)
-- ✅ Human escalation with GitHub issues and Slack alerts
-- ✅ RBAC with least-privilege service accounts
-
-### Production-Ready Architecture
-- ✅ Event-driven design (NATS event bus)
-- ✅ Complete FSM with 21 state transitions
-- ✅ 7 JSON event schemas for inter-module communication
-- ✅ Retry policies and error handling for all MCP calls
-- ✅ Observable with Prometheus metrics and Grafana dashboards
-
----
+- **AI-Driven Decisions**: Use natural language prompts instead of hardcoded logic
+- **Kubernetes-Native**: CRDs for configuration, no external database needed
+- **GitOps-Friendly**: All configuration in YAML, version controlled
+- **GraphQL-First**: Efficient GitHub integration via GraphQL API
+- **Multi-Environment**: Different rules for staging, production, etc.
+- **Extensible**: Easy to add new processing rules without code changes
 
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - Kubernetes 1.28+
-- Argo CD 2.8+
-- NATS JetStream 2.10+
-- etcd 3.5+
-- Prometheus 2.45+
-- GitHub App with appropriate permissions
+- Helm 3.0+
+- GitHub Personal Access Token or GitHub App
+- AI API Token (Anthropic Claude, OpenAI, etc.)
+- Optional: Argo CD for health checks
 
 ### Installation
 
+1. **Create namespace and secrets:**
+
 ```bash
-# 1. Create namespace
 kubectl create namespace ai-operator-system
 
-# 2. Install dependencies (NATS, etcd)
-helm install nats nats/nats --namespace ai-operator-system --set jetstream.enabled=true
-helm install etcd bitnami/etcd --namespace ai-operator-system
+kubectl create secret generic ai-operator-secrets \
+  --namespace ai-operator-system \
+  --from-literal=github-token=ghp_your_github_token \
+  --from-literal=ai-token=sk-ant-your_anthropic_token
+```
 
-# 3. Create secrets
-kubectl -n ai-operator-system create secret generic ai-operator-secrets \
-  --from-literal=github-token=YOUR_GITHUB_TOKEN \
-  --from-literal=argocd-token=YOUR_ARGOCD_TOKEN
+2. **Install Helm chart:**
 
-# 4. Deploy AI Operator
-kubectl apply -f manifests/
+```bash
+helm install ai-operator ./charts/ai-operator \
+  --namespace ai-operator-system \
+  --set github.organization=your-org \
+  --set github.repositories="{repo1,repo2,repo3}"
+```
 
-# 5. Verify deployment
+3. **Apply a reconciliation rule:**
+
+```bash
+kubectl apply -f examples/staging-automerge-rule.yaml
+```
+
+4. **Verify installation:**
+
+```bash
 kubectl -n ai-operator-system get pods
-kubectl -n ai-operator-system logs -f ai-operator-<pod-id>
+kubectl -n ai-operator-system get prrules
+kubectl -n ai-operator-system logs -f deployment/ai-operator
 ```
 
-See the **[Deployment Guide](./ai-operator-deployment-guide.md)** for complete installation instructions.
+## 📖 Usage
 
----
+### Creating a PR Reconciliation Rule
 
-## 📊 Architecture
+Create a `PRReconciliationRule` CRD to define how PRs should be processed:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     FSM Controller                               │
-│                  (State Machine Orchestrator)                    │
-└───────────┬─────────────────────────────────────────────────────┘
-            │
-            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Event Bus (NATS)                              │
-│  Topics: degradation.*, candidate.*, pr.*, merge.*, health.*    │
-└─────────┬─────────┬──────────┬──────────┬──────────┬───────────┘
-          │         │          │          │          │
-          ▼         ▼          ▼          ▼          ▼
-    ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐
-    │Degradat-│ │Stability│ │Rollback │ │   PR    │ │  Merge  │
-    │ion      │ │Analyzer │ │Candidate│ │Generator│ │Controlle│
-    │Detector │ │         │ │Resolver │ │         │ │r        │
-    └─────────┘ └─────────┘ └─────────┘ └─────────┘ └─────────┘
-```
-
-### Components
-- **DegradationDetector**: Monitors Argo CD health every 10s
-- **StabilityAnalyzer**: Verifies 3 consecutive degraded checks
-- **RollbackCandidateResolver**: Finds last stable Git revision
-- **PRGenerator**: Creates rollback PR with context
-- **MergeController**: Enforces invariants and auto-merges (staging only)
-- **InvariantEnforcement**: Validates all 8 safety conditions
-- **Audit & Logging**: Immutable audit trail
-
----
-
-## 🔒 Safety Invariants (Level 2 Autonomy)
-
-Auto-merge is **only** allowed if **ALL 8 invariants** pass:
-
-| ID | Invariant | Purpose |
-|----|-----------|---------|
-| **I1** | Environment == staging | No auto-merge in production |
-| **I2** | Argo CD health == Degraded | Only rollback if currently degraded |
-| **I3** | Available replicas < desired | Confirm actual replica shortage |
-| **I4** | Degraded for 3 checks (30s) | Filter transient issues |
-| **I5** | Target has 99% uptime | Ensure stable rollback target |
-| **I6** | CI status == success | All tests must pass |
-| **I7** | No conflicting PRs | Prevent race conditions |
-| **I8** | Branch protection satisfied | Respect repo rules |
-
-See **[Governance Specification](./ai-operator-governance-spec.md)** for quantitative definitions.
-
----
-
-## 📈 Observability
-
-### Prometheus Metrics
 ```yaml
-# Key Metrics
-ai_operator_degradations_detected_total
-ai_operator_rollbacks_merged_total
-ai_operator_mean_time_to_recovery_seconds
-ai_operator_invariant_violations_total
-ai_operator_mcp_call_errors_total
+apiVersion: aioperator.io/v1alpha1
+kind: PRReconciliationRule
+metadata:
+  name: my-automerge-rule
+  namespace: ai-operator-system
+spec:
+  # PR selector
+  selector:
+    labels:
+      include:
+        - "auto-merge"
+        - "staging"
+      exclude:
+        - "do-not-merge"
+    baseBranch: "main"
+
+  # AI instruction (natural language)
+  instruction: |
+    You are reviewing a pull request. Decide what action to take.
+
+    **Context:**
+    - PR #{{pr.number}}: {{pr.title}}
+    - CI Status: {{pr.ciStatus}}
+    - Mergeable: {{pr.mergeable}}
+
+    **Rules:**
+    - Auto-merge if CI passed and mergeable
+    - Wait if CI pending
+    - Escalate if CI failed
+
+    Return JSON: {"action": "merge|wait|escalate|close", "reason": "..."}
+
+  # Settings
+  reconciliationInterval: 30
+  mergeMethod: "SQUASH"
 ```
 
-### Grafana Dashboards
-- Rollback success rate (last 24h)
-- Active rollback attempts (by FSM state)
-- Mean time to recovery trend
-- MCP call latency (p50, p95, p99)
-- Invariant violations by type
+Apply the rule:
 
-### Alerting Rules
-- High abort rate (> 2/hour)
-- Slow recovery time (p95 > 10min)
-- CI failures (> 5/hour)
-- Permission denied errors (immediate)
+```bash
+kubectl apply -f my-rule.yaml
+```
 
-See **[Deployment Guide](./ai-operator-deployment-guide.md)** for complete observability setup.
+### Updating a Rule
 
----
+Edit the rule directly:
 
-## 🎬 Example Workflow (Staging Auto-Merge)
+```bash
+kubectl edit prrule my-automerge-rule -n ai-operator-system
+```
 
-1. **Detection (10:30:00)**
-   - Argo CD reports: payment-service `Degraded`, replicas 1/3
+Changes take effect immediately (within the reconciliation interval).
 
-2. **Persistence Verification (10:30:30)**
-   - Still degraded after 3 consecutive checks → Confirmed
+### Viewing Rule Status
 
-3. **Candidate Search (10:31:00)**
-   - Found stable revision: `abc123` (99.8% uptime, CI passed)
+```bash
+kubectl get prrules -n ai-operator-system
+kubectl describe prrule my-automerge-rule -n ai-operator-system
+```
 
-4. **PR Creation (10:31:30)**
-   - Created: `Rollback: payment-service to abc123`
-   - Labels: `ai-operator`, `rollback`, `staging`
+## 📋 Examples
 
-5. **CI Execution (10:33:00)**
-   - Unit tests: ✅ Passed
-   - Integration tests: ✅ Passed
-   - Security scan: ✅ Passed
+See the [`examples/`](./examples/) directory for complete examples:
 
-6. **Invariant Checks (10:33:30)**
-   - All 8 invariants: ✅ PASS
+- **[staging-automerge-rule.yaml](./examples/staging-automerge-rule.yaml)** - Auto-merge staging PRs when CI passes
+- **[production-approval-rule.yaml](./examples/production-approval-rule.yaml)** - Require human approval for production
+- **[dependabot-automerge-rule.yaml](./examples/dependabot-automerge-rule.yaml)** - Auto-merge Dependabot updates
 
-7. **Auto-Merge (10:33:30)**
-   - PR merged automatically (staging environment)
+## 🏗️ Architecture
 
-8. **Recovery (10:36:00)**
-   - Health restored: `Healthy`, replicas 3/3
-   - **Total time: 6 minutes from detection to recovery**
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. User creates PRReconciliationRule CRD (kubectl apply)    │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 2. AI Operator reads CRDs every N seconds                   │
+│    └─> Fetches matching PRs via GitHub GraphQL API          │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 3. For each PR:                                              │
+│    ├─> Render AI prompt with PR context                     │
+│    ├─> Call AI (Claude/GPT) for decision                    │
+│    └─> Parse JSON: {action: "merge|wait|escalate|close"}    │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 4. Execute action via GitHub GraphQL:                       │
+│    ├─> merge: mergePullRequest mutation                     │
+│    ├─> close: closePullRequest mutation + comment           │
+│    ├─> escalate: add labels + comment                       │
+│    └─> wait: do nothing, check next loop                    │
+└─────────────────────────────────────────────────────────────┘
+```
 
-See **[Full Context](./ai-operator-full-context.md)** for more worked examples.
+## ⚙️ Configuration
 
----
+### Helm Values
 
-## 🛠 Technology Stack
+Key configuration options in `values.yaml`:
 
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **Runtime** | Python 3.11+ | Application logic |
-| **State Machine** | python-statemachine | FSM implementation |
-| **Event Bus** | NATS JetStream | Module communication |
-| **State Store** | etcd | FSM persistence |
-| **Metrics** | Prometheus | Observability |
-| **Logging** | Elasticsearch | Audit trail |
-| **Container** | Kubernetes | Deployment platform |
-| **GitOps** | Argo CD | Continuous deployment |
+```yaml
+github:
+  organization: "your-org"
+  repositories:
+    - "repo1"
+    - "repo2"
 
----
+ai:
+  endpoint: "https://api.anthropic.com/v1/messages"
+  model: "claude-3-5-sonnet-20241022"
+  temperature: 0.2
 
-## 📋 Document Status
+argocd:
+  enabled: true
+  url: "https://argocd.example.com"
 
-| Document | Version | Lines | Status |
-|----------|---------|-------|--------|
-| Architecture | 1.0 | ~400 | ✅ Complete |
-| MCP API Spec | 1.0 | ~900 | ✅ Complete |
-| Rollback Engine | 2.0 | ~1200 | ✅ Complete |
-| Governance | 2.0 | ~1000 | ✅ Complete |
-| Full Context | 2.0 | ~600 | ✅ Complete |
-| Deployment Guide | 1.0 | ~800 | ✅ Complete |
-| Verification | 1.0 | ~300 | ✅ Complete |
+reconciliation:
+  defaultIntervalSeconds: 30
+  maxPRsPerCycle: 100
+```
 
-**Total:** 6,010 lines of production-ready specifications
+### Environment Variables
 
----
+The operator supports these environment variables:
 
-## ✅ Verification Status
+- `GITHUB_ORGANIZATION` - GitHub organization name
+- `GITHUB_REPOSITORIES` - Comma-separated list of repos
+- `GITHUB_TOKEN` - GitHub access token
+- `AI_ENDPOINT` - AI API endpoint
+- `AI_MODEL` - AI model name
+- `AI_TOKEN` - AI API token
+- `ARGOCD_ENABLED` - Enable Argo CD integration (true/false)
+- `ARGOCD_URL` - Argo CD server URL
+- `LOG_LEVEL` - Logging level (DEBUG, INFO, WARNING, ERROR)
 
-- ✅ **Timing**: All constants consistent (3 consecutive 10s checks = 30s)
-- ✅ **Invariants**: All 8 defined and enforced (78 references)
-- ✅ **MCP Calls**: All 9 fully specified with schemas
-- ✅ **FSM**: All 8 states and 21 transitions defined
-- ✅ **Events**: All 7 event schemas complete
-- ✅ **Safety**: All failure scenarios have recovery procedures
-- ✅ **Implementation Ready**: Sufficient detail for code generation
+## 🔒 Security
 
-See **[Verification Summary](./VERIFICATION_SUMMARY.md)** for complete validation.
+### RBAC
 
----
+The operator requires these Kubernetes permissions:
 
-## 🔧 Runbooks
+- **PRReconciliationRule CRDs**: `get`, `list`, `watch`, `update` (status)
+- **ConfigMaps**: `get`, `list` (for configuration)
+- **Secrets**: `get`, `list` (for tokens)
 
-Included in the **[Deployment Guide](./ai-operator-deployment-guide.md)**:
+### GitHub Permissions
 
-1. **AI Operator in Abort State** - Diagnose and reset FSM
-2. **Rollback PR Not Auto-Merging** - Check invariants and fix
-3. **AI Operator Pod Crash Loop** - Investigate dependencies
-4. **High Degradation Detection Rate** - Identify patterns
+Required GitHub token scopes:
 
----
+- `repo` (full control of private repositories)
+- `read:org` (read organization membership)
+- `write:discussion` (for PR comments)
+
+### Secrets Management
+
+**Production best practice:** Use external secrets management (e.g., Sealed Secrets, External Secrets Operator):
+
+```yaml
+# values.yaml
+github:
+  tokenSecretName: github-token-sealed
+  tokenSecretKey: token
+
+ai:
+  tokenSecretName: ai-token-sealed
+  tokenSecretKey: token
+```
+
+## 🐛 Troubleshooting
+
+### Operator not starting
+
+Check logs:
+
+```bash
+kubectl -n ai-operator-system logs -f deployment/ai-operator
+```
+
+Common issues:
+- Missing secrets (github-token, ai-token)
+- CRD not installed
+- RBAC permissions incorrect
+
+### PRs not being processed
+
+1. Check if rule matches PRs:
+
+```bash
+kubectl describe prrule <rule-name> -n ai-operator-system
+```
+
+2. Check operator logs for errors:
+
+```bash
+kubectl -n ai-operator-system logs deployment/ai-operator --tail=100
+```
+
+3. Verify PR labels match rule selector
+
+### AI decisions not working
+
+- Check AI API token is valid
+- Verify AI endpoint is reachable
+- Review AI prompt template syntax
+- Check logs for AI errors
+
+## 📊 Monitoring
+
+The operator exposes Prometheus metrics on port 9090:
+
+- `ai_operator_rules_total` - Total number of reconciliation rules
+- `ai_operator_prs_processed_total` - Total PRs processed
+- `ai_operator_actions_total{action="merge|close|escalate|wait"}` - Actions taken
+- `ai_operator_errors_total{type="github|ai|kubernetes"}` - Errors by type
 
 ## 🤝 Contributing
 
-This repository contains **specifications only** (no implementation code yet). To contribute:
+Contributions welcome! Please:
 
-1. Review specifications for consistency and completeness
-2. Propose improvements via GitHub issues
-3. Submit PRs for specification updates
-4. Help with implementation (coming soon)
-
----
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
 
 ## 📄 License
 
 MIT License - See [LICENSE](LICENSE) for details
 
----
-
 ## 🙏 Acknowledgments
 
-Specifications developed with comprehensive review and verification to ensure production readiness.
-
-**Co-Authored-By:** Claude Opus 4.6 <noreply@anthropic.com>
-
----
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/grhili/ai-devops-operator/issues)
-- **Documentation**: Start with [Architecture Overview](./ai-operator-architecture.md)
-- **Runbooks**: See [Deployment Guide](./ai-operator-deployment-guide.md) Section 7
+Built with:
+- [Kubernetes Python Client](https://github.com/kubernetes-client/python)
+- [Anthropic Python SDK](https://github.com/anthropics/anthropic-sdk-python)
+- [Jinja2](https://jinja.palletsprojects.com/)
+- [Structlog](https://www.structlog.org/)
 
 ---
 
-**Status:** ✅ Production-Ready Specifications
-**Next Step:** Implementation (use specs to generate code)
+**Status:** ✅ Production Ready
+**Version:** 0.1.0
+**Last Updated:** 2026-02-27

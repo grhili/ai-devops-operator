@@ -1,0 +1,60 @@
+{{- if .Values.rbac.create -}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.rbac.serviceAccountName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "ai-operator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "ai-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "ai-operator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+rules:
+  # Access to PRReconciliationRule CRDs
+  - apiGroups: ["aioperator.io"]
+    resources: ["prreconciliationrules"]
+    verbs: ["get", "list", "watch"]
+
+  # Update CRD status
+  - apiGroups: ["aioperator.io"]
+    resources: ["prreconciliationrules/status"]
+    verbs: ["get", "update", "patch"]
+
+  # Access to ConfigMaps (for configuration)
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+
+  # Access to Secrets (for tokens)
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "ai-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "ai-operator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "ai-operator.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.rbac.serviceAccountName }}
+    namespace: {{ .Release.Namespace }}
+
+{{- end }}

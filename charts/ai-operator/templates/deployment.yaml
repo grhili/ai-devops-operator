@@ -1,0 +1,161 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ai-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "ai-operator.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "ai-operator.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        app.kubernetes.io/name: {{ include "ai-operator.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      {{- if .Values.rbac.create }}
+      serviceAccountName: {{ .Values.rbac.serviceAccountName }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: operator
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            # GitHub configuration
+            - name: GITHUB_GRAPHQL_ENDPOINT
+              value: {{ .Values.github.graphqlEndpoint | quote }}
+            - name: GITHUB_ORGANIZATION
+              value: {{ .Values.github.organization | quote }}
+            - name: GITHUB_REPOSITORIES
+              value: {{ join "," .Values.github.repositories | quote }}
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.github.tokenSecretName | default "ai-operator-secrets" }}
+                  key: {{ .Values.github.tokenSecretKey | default "github-token" }}
+
+            # AI configuration
+            - name: AI_ENDPOINT
+              value: {{ .Values.ai.endpoint | quote }}
+            - name: AI_MODEL
+              value: {{ .Values.ai.model | quote }}
+            - name: AI_MAX_TOKENS
+              value: {{ .Values.ai.maxTokens | quote }}
+            - name: AI_TEMPERATURE
+              value: {{ .Values.ai.temperature | quote }}
+            - name: AI_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ai.tokenSecretName | default "ai-operator-secrets" }}
+                  key: {{ .Values.ai.tokenSecretKey | default "ai-token" }}
+
+            # Argo CD configuration (optional)
+            {{- if .Values.argocd.enabled }}
+            - name: ARGOCD_ENABLED
+              value: "true"
+            - name: ARGOCD_URL
+              value: {{ .Values.argocd.url | quote }}
+            - name: ARGOCD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.argocd.tokenSecretName | default "ai-operator-secrets" }}
+                  key: {{ .Values.argocd.tokenSecretKey | default "argocd-token" }}
+            {{- else }}
+            - name: ARGOCD_ENABLED
+              value: "false"
+            {{- end }}
+
+            # Logging configuration
+            - name: LOG_LEVEL
+              value: {{ .Values.logging.level | quote }}
+            - name: LOG_FORMAT
+              value: {{ .Values.logging.format | quote }}
+
+            # Reconciliation configuration
+            - name: DEFAULT_RECONCILIATION_INTERVAL
+              value: {{ .Values.reconciliation.defaultIntervalSeconds | quote }}
+            - name: MAX_PRS_PER_CYCLE
+              value: {{ .Values.reconciliation.maxPRsPerCycle | quote }}
+            - name: RETRY_ATTEMPTS
+              value: {{ .Values.reconciliation.retryAttempts | quote }}
+            - name: RETRY_BACKOFF_SECONDS
+              value: {{ .Values.reconciliation.retryBackoffSeconds | quote }}
+
+            # Kubernetes namespace
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+
+          {{- if .Values.healthcheck.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.healthcheck.livenessPath }}
+              port: {{ .Values.healthcheck.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.healthcheck.readinessPath }}
+              port: {{ .Values.healthcheck.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          {{- end }}
+
+          ports:
+            {{- if .Values.metrics.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+              protocol: TCP
+            {{- end }}
+            {{- if .Values.healthcheck.enabled }}
+            - name: health
+              containerPort: {{ .Values.healthcheck.port }}
+              protocol: TCP
+            {{- end }}
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

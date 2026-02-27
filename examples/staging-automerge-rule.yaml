@@ -1,0 +1,74 @@
+---
+apiVersion: aioperator.io/v1alpha1
+kind: PRReconciliationRule
+metadata:
+  name: staging-automerge
+  namespace: ai-operator-system
+  labels:
+    environment: staging
+    automation-level: high
+spec:
+  # This rule applies to PRs with "auto-merge" and "staging" labels
+  selector:
+    labels:
+      include:
+        - "auto-merge"
+        - "staging"
+      exclude:
+        - "do-not-merge"
+        - "wip"
+        - "draft"
+    baseBranch: "main"
+
+  # AI instruction for decision-making
+  instruction: |
+    You are an AI operator reviewing a staging environment pull request for automatic merging.
+
+    **Pull Request Context:**
+    - PR #{{pr.number}}: {{pr.title}}
+    - Author: {{pr.author}}
+    - Labels: {{pr.labels}}
+    - CI Status: {{pr.ciStatus}}
+    - Mergeable (no conflicts): {{pr.mergeable}}
+    - Reviews: {{pr.reviews}}
+    - Argo CD Application Health: {{argocd.health}}
+
+    **Decision Rules:**
+
+    1. **AUTO-MERGE** if ALL conditions are met:
+       - CI status is "SUCCESS" (all checks passed)
+       - PR is mergeable (no merge conflicts)
+       - Argo CD health is "Degraded" or "Progressing" (indicating rollback is needed)
+       - PR has label "auto-merge"
+
+    2. **CLOSE** if:
+       - Argo CD health is "Healthy" (application recovered, rollback no longer needed)
+       - Add comment explaining that the application health was restored
+
+    3. **WAIT** if:
+       - CI status is "PENDING" (tests still running)
+       - Do nothing, check again next reconciliation
+
+    4. **ESCALATE** if any of these fail:
+       - CI status is "FAILURE" or "ERROR"
+       - PR has merge conflicts (mergeable = false)
+       - Any other unexpected condition
+
+    **Output Format:**
+    Return a JSON object with exactly these fields:
+    {
+      "action": "merge",  // one of: "merge", "wait", "escalate", "close"
+      "reason": "CI passed, no conflicts, Argo CD degraded - auto-merging to restore service"
+    }
+
+    Be concise but clear in your reason. This will be logged and may be shown to users.
+
+  # Enable Argo CD health checks
+  argocdEnabled: true
+  argocdAppNamePattern: "{{repository}}-staging"
+
+  # Reconcile every 30 seconds
+  reconciliationInterval: 30
+
+  # Use squash merge
+  mergeMethod: "SQUASH"

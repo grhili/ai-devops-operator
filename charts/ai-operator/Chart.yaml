@@ -1,0 +1,16 @@
+apiVersion: v2
+name: ai-operator
+description: AI-driven Kubernetes reconciliation controller for GitHub pull requests
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - ai
+  - automation
+  - github
+  - pull-requests
+  - reconciliation
+  - kubernetes
+maintainers:
+  - name: AI DevOps Team
+    email: devops@example.com

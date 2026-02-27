@@ -1,0 +1,65 @@
+---
+apiVersion: aioperator.io/v1alpha1
+kind: PRReconciliationRule
+metadata:
+  name: dependabot-automerge
+  namespace: ai-operator-system
+  labels:
+    automation: dependabot
+    automation-level: high
+spec:
+  # This rule applies to Dependabot PRs
+  selector:
+    labels:
+      include:
+        - "dependencies"
+      exclude:
+        - "do-not-merge"
+    author: "dependabot[bot]"
+    titlePattern: "^Bump "
+
+  # AI instruction for Dependabot PR auto-merge
+  instruction: |
+    You are reviewing a Dependabot dependency update pull request.
+
+    **Pull Request Context:**
+    - PR #{{pr.number}}: {{pr.title}}
+    - Author: {{pr.author}} (should be dependabot[bot])
+    - Labels: {{pr.labels}}
+    - CI Status: {{pr.ciStatus}}
+    - Mergeable: {{pr.mergeable}}
+    - Reviews: {{pr.reviews}}
+
+    **Decision Rules:**
+
+    1. **AUTO-MERGE** if ALL conditions are met:
+       - CI status is "SUCCESS"
+       - PR is mergeable (no conflicts)
+       - PR is authored by "dependabot[bot]"
+       - Title starts with "Bump " (version bump)
+       - No "breaking-change" label present
+
+    2. **ESCALATE** if:
+       - PR has label "breaking-change" or "major-version"
+       - CI failed
+       - Has merge conflicts
+       - Add comment: "⚠️ Dependency update requires manual review"
+
+    3. **WAIT** if:
+       - CI is still pending
+
+    **Output Format:**
+    Return JSON:
+    {
+      "action": "merge",  // one of: "merge", "wait", "escalate"
+      "reason": "Dependabot minor version bump, CI passed, auto-merging"
+    }
+
+  # No Argo CD needed for dependency updates
+  argocdEnabled: false
+
+  # Check frequently for Dependabot PRs (every 20 seconds)
+  reconciliationInterval: 20
+
+  # Use squash merge to keep history clean
+  mergeMethod: "SQUASH"
