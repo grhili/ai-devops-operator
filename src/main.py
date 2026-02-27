@@ -1,22 +1,19 @@
 #!/usr/bin/env python3
 """
 AI Operator - Main Entry Point
-
-This operator reconciles GitHub pull requests based on AI-driven decisions
-defined in PRReconciliationRule CRDs.
 """
 
 import asyncio
 import os
 import signal
 import sys
-from typing import Optional
 
 import structlog
+from aiohttp import web
 
+from metrics import start_metrics_server
 from reconciler import Reconciler
 
-# Configure structured logging
 structlog.configure(
     processors=[
         structlog.stdlib.filter_by_level,
@@ -40,46 +37,99 @@ logger = structlog.get_logger()
 
 
 class GracefulShutdown:
-    """Handle graceful shutdown on SIGTERM/SIGINT"""
-
     def __init__(self):
         self.shutdown_requested = False
-        signal.signal(signal.SIGTERM, self.request_shutdown)
-        signal.signal(signal.SIGINT, self.request_shutdown)
+        signal.signal(signal.SIGTERM, self._handle)
+        signal.signal(signal.SIGINT, self._handle)
 
-    def request_shutdown(self, signum, frame):
+    def _handle(self, signum, frame):
         logger.info("shutdown_requested", signal=signum)
         self.shutdown_requested = True
 
 
-async def main():
-    """Main entry point"""
-    logger.info(
-        "ai_operator_starting",
-        version="0.1.0",
-        log_level=os.getenv("LOG_LEVEL", "INFO"),
-        namespace=os.getenv("NAMESPACE", "default"),
-    )
+# ------------------------------------------------------------------
+# Health / readiness server
+# ------------------------------------------------------------------
 
-    # Set up graceful shutdown
-    shutdown_handler = GracefulShutdown()
+class HealthServer:
+    """
+    Minimal aiohttp server for Kubernetes liveness and readiness probes.
 
-    # Initialize reconciler
+    /healthz  — liveness:  always 200 once the process is up
+    /ready    — readiness: 200 once the reconciler has successfully initialised,
+                           503 before that
+    """
+
+    def __init__(self, port: int = 8080):
+        self._port = port
+        self._ready = False
+        self._runner: web.AppRunner | None = None
+
+    def mark_ready(self) -> None:
+        self._ready = True
+
+    async def start(self) -> None:
+        app = web.Application()
+        app.router.add_get("/healthz", self._healthz)
+        app.router.add_get("/ready", self._ready_handler)
+        self._runner = web.AppRunner(app)
+        await self._runner.setup()
+        site = web.TCPSite(self._runner, "0.0.0.0", self._port)
+        await site.start()
+        logger.info("health_server_started", port=self._port)
+
+    async def stop(self) -> None:
+        if self._runner:
+            await self._runner.cleanup()
+
+    async def _healthz(self, _request: web.Request) -> web.Response:
+        return web.Response(text="ok")
+
+    async def _ready_handler(self, _request: web.Request) -> web.Response:
+        if self._ready:
+            return web.Response(text="ok")
+        return web.Response(status=503, text="not ready")
+
+
+# ------------------------------------------------------------------
+# Entry point
+# ------------------------------------------------------------------
+
+async def main() -> None:
+    logger.info("ai_operator_starting", version="0.1.0",
+                namespace=os.getenv("NAMESPACE", "default"))
+
+    shutdown = GracefulShutdown()
+
+    # Start metrics server (Prometheus)
+    metrics_port = int(os.getenv("METRICS_PORT", "9090"))
+    start_metrics_server(metrics_port)
+
+    # Start health server (liveness / readiness probes)
+    health_port = int(os.getenv("HEALTH_PORT", "8080"))
+    health = HealthServer(port=health_port)
+    await health.start()
+
+    # Initialise reconciler
     try:
         reconciler = Reconciler()
         await reconciler.initialize()
-    except Exception as e:
-        logger.error("reconciler_initialization_failed", error=str(e), exc_info=True)
+    except Exception as exc:
+        logger.error("reconciler_initialization_failed", error=str(exc), exc_info=True)
+        await health.stop()
         sys.exit(1)
+
+    health.mark_ready()
 
     # Run reconciliation loop
     try:
-        await reconciler.run(shutdown_handler)
-    except Exception as e:
-        logger.error("reconciler_loop_failed", error=str(e), exc_info=True)
+        await reconciler.run(shutdown)
+    except Exception as exc:
+        logger.error("reconciler_loop_failed", error=str(exc), exc_info=True)
         sys.exit(1)
     finally:
         await reconciler.shutdown()
+        await health.stop()
         logger.info("ai_operator_stopped")
 
 

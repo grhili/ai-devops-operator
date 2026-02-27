@@ -23,7 +23,7 @@ import asyncio
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import structlog
 from anthropic import AsyncAnthropic
@@ -32,6 +32,7 @@ from jinja2 import Template
 from argocd.client import ArgoCDClient
 from github.client import GitHubGraphQLClient
 from k8s.client import KubernetesCRDClient, PRReconciliationRule
+from metrics import ACTIONS, ERRORS, PRS_PROCESSED, RECONCILIATION_LOOPS, RULES_ACTIVE
 
 logger = structlog.get_logger()
 
@@ -77,6 +78,7 @@ class AIClient:
             logger.error("ai_response_not_json", error=str(exc))
             return {"action": "wait", "reason": "AI returned non-JSON response"}
         except Exception as exc:
+            ERRORS.labels(component="ai").inc()
             logger.error("ai_request_failed", error=str(exc), exc_info=True)
             return {"action": "wait", "reason": f"AI request failed: {exc}"}
 
@@ -127,27 +129,71 @@ class Reconciler:
         logger.info("reconciler_stopped")
 
     # ------------------------------------------------------------------
-    # Main loop
+    # Main loop — per-rule independent scheduling
     # ------------------------------------------------------------------
 
     async def run(self, shutdown_handler) -> None:
+        """
+        Spawn one long-running task per PRReconciliationRule, each sleeping for
+        its own reconciliationInterval between iterations.  Rules are refreshed
+        from Kubernetes every `default_interval` seconds so newly created or
+        deleted CRDs are picked up without a restart.
+        """
         logger.info("reconciliation_loop_started")
+
+        # rule name → running asyncio Task
+        active_tasks: Dict[str, asyncio.Task] = {}
+
         while not shutdown_handler.shutdown_requested:
             try:
                 rules = self.k8s.list_rules()
+                RULES_ACTIVE.set(len(rules))
+
                 if not rules:
                     logger.warning("no_rules_found", namespace=self.namespace)
                 else:
-                    await asyncio.gather(
-                        *[self._reconcile_rule(rule) for rule in rules],
-                        return_exceptions=True,
-                    )
+                    current_names = {r.name for r in rules}
+
+                    # Cancel tasks for rules that were deleted
+                    for name in list(active_tasks):
+                        if name not in current_names:
+                            active_tasks.pop(name).cancel()
+                            logger.info("rule_task_cancelled", rule=name)
+
+                    # Spawn tasks for new rules
+                    for rule in rules:
+                        if rule.name not in active_tasks or active_tasks[rule.name].done():
+                            task = asyncio.create_task(
+                                self._rule_loop(rule, shutdown_handler),
+                                name=f"rule-{rule.name}",
+                            )
+                            active_tasks[rule.name] = task
+                            logger.info("rule_task_started", rule=rule.name,
+                                        interval=rule.reconciliation_interval)
+
             except Exception as exc:
+                ERRORS.labels(component="reconciler").inc()
                 logger.error("reconciliation_loop_error", error=str(exc), exc_info=True)
 
             await asyncio.sleep(self.default_interval)
 
+        # Shut down all rule tasks cleanly
+        for task in active_tasks.values():
+            task.cancel()
+        await asyncio.gather(*active_tasks.values(), return_exceptions=True)
         logger.info("reconciliation_loop_stopped")
+
+    async def _rule_loop(self, rule: PRReconciliationRule, shutdown_handler) -> None:
+        """Run reconciliation for a single rule on its own interval."""
+        while not shutdown_handler.shutdown_requested:
+            try:
+                await self._reconcile_rule(rule)
+                RECONCILIATION_LOOPS.inc()
+            except Exception as exc:
+                ERRORS.labels(component="reconciler").inc()
+                logger.error("rule_loop_error", rule=rule.name, error=str(exc), exc_info=True)
+
+            await asyncio.sleep(rule.reconciliation_interval)
 
     # ------------------------------------------------------------------
     # Per-rule reconciliation
@@ -173,10 +219,12 @@ class Reconciler:
                     processed += 1
 
             except Exception as exc:
+                ERRORS.labels(component="github").inc()
                 logger.error("reconcile_repo_failed", rule=rule.name,
                              repo=f"{owner}/{repo_name}", error=str(exc), exc_info=True)
                 self.k8s.record_error(rule, str(exc))
 
+        PRS_PROCESSED.inc(processed)
         self.k8s.record_reconciliation(rule, processed)
 
     # ------------------------------------------------------------------
@@ -236,9 +284,13 @@ class Reconciler:
                 pass  # Re-checked on next loop iteration
 
             else:
+                action = "unknown"
                 logger.warning("unknown_action", action=action, pr=pr_number)
 
+            ACTIONS.labels(action=action).inc()
+
         except Exception as exc:
+            ERRORS.labels(component="github").inc()
             logger.error("action_failed", pr=pr_number, action=action, error=str(exc), exc_info=True)
 
     # ------------------------------------------------------------------

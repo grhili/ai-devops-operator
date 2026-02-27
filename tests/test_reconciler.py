@@ -349,19 +349,27 @@ class TestRunLoop:
 
     @pytest.mark.asyncio
     async def test_run_processes_rules(self, monkeypatch, pr_open, staging_rule_spec):
+        """_rule_loop runs _reconcile_rule and executes the AI decision."""
         r = _make_reconciler(BASE_ENV, monkeypatch)
 
         rule = PRReconciliationRule("r1", "test-ns", staging_rule_spec)
-        r.k8s.list_rules = MagicMock(return_value=[rule])
         r.k8s.record_reconciliation = MagicMock()
         r.k8s.record_error = MagicMock()
-
         r.github.get_pull_requests = AsyncMock(return_value=[pr_open])
         r.github.merge_pull_request = AsyncMock()
         r.github.add_comment = AsyncMock()
         r.ai.decide = AsyncMock(return_value={"action": "merge", "reason": "CI passed"})
 
-        await r.run(self._StopAfter(1))
+        shutdown = MagicMock()
+        shutdown.shutdown_requested = False
+
+        # Stop after first reconciliation by raising CancelledError from sleep
+        async def fake_sleep(_):
+            raise asyncio.CancelledError()
+
+        with patch("reconciler.asyncio.sleep", new=fake_sleep):
+            with pytest.raises(asyncio.CancelledError):
+                await r._rule_loop(rule, shutdown)
 
         r.github.get_pull_requests.assert_awaited()
         r.ai.decide.assert_awaited()
@@ -388,18 +396,23 @@ class TestRunLoop:
         assert slept  # sleep was called at least once
 
     @pytest.mark.asyncio
-    async def test_run_continues_after_repo_error(self, monkeypatch, pr_open, staging_rule_spec):
+    async def test_run_continues_after_repo_error(self, monkeypatch, staging_rule_spec):
+        """_rule_loop records errors and does not propagate repo-level exceptions."""
         r = _make_reconciler(BASE_ENV, monkeypatch)
 
         rule = PRReconciliationRule("r1", "test-ns", staging_rule_spec)
-        r.k8s.list_rules = MagicMock(return_value=[rule])
         r.k8s.record_reconciliation = MagicMock()
         r.k8s.record_error = MagicMock()
-
-        # First call raises, second would be fine (but loop stops after 1 iteration)
         r.github.get_pull_requests = AsyncMock(side_effect=Exception("network failure"))
 
-        # Should not raise
-        await r.run(self._StopAfter(1))
+        shutdown = MagicMock()
+        shutdown.shutdown_requested = False
+
+        async def fake_sleep(_):
+            raise asyncio.CancelledError()
+
+        with patch("reconciler.asyncio.sleep", new=fake_sleep):
+            with pytest.raises(asyncio.CancelledError):
+                await r._rule_loop(rule, shutdown)
 
         r.k8s.record_error.assert_called_once()
