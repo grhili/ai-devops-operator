@@ -17,6 +17,31 @@
 
 ## 🚀 Quick Start
 
+### Local Development
+
+For local development with kind (Kubernetes in Docker):
+
+```bash
+# Set your tokens
+export GITHUB_TOKEN=ghp_your_token
+export AI_TOKEN=sk-ant-your_token
+
+# Run the setup script
+./scripts/local-dev.sh --org=your-org --repos=your-repo
+
+# View logs
+kubectl -n ai-operator-system logs -f deployment/ai-operator
+```
+
+The script will:
+- Create a kind cluster (`ai-operator-dev`)
+- Build and load the Docker image
+- Install the Helm chart
+- Apply example PR rules
+- Show status and useful commands
+
+See `./scripts/local-dev.sh --help` for all options.
+
 ### Prerequisites
 
 - Kubernetes 1.28+
@@ -25,7 +50,7 @@
 - AI API Token (Anthropic Claude, OpenAI, etc.)
 - Optional: Argo CD for health checks
 
-### Installation
+### Production Installation
 
 1. **Create namespace and secrets:**
 
