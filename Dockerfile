@@ -1,5 +1,5 @@
 # Build stage
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
@@ -10,8 +10,8 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 # Runtime stage
 FROM python:3.11-slim
 
-# Create non-root user
-RUN useradd -m -u 1000 -s /bin/bash operator
+# Create non-root user (group 'operator' exists in base image, reuse it)
+RUN useradd -m -u 1000 -g operator -s /bin/bash operator
 
 WORKDIR /app
 
