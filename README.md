@@ -1,6 +1,7 @@
 # AI-Driven PR Reconciliation Operator
 
-[![Status](https://img.shields.io/badge/status-beta-yellow)](https://github.com/your-org/ai-operator)
+[![CI](https://github.com/grhili/ai-devops-operator/actions/workflows/ci.yml/badge.svg)](https://github.com/grhili/ai-devops-operator/actions/workflows/ci.yml)
+[![Status](https://img.shields.io/badge/status-beta-yellow)](https://github.com/grhili/ai-devops-operator)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **A Kubernetes-native operator that uses AI to automatically process pull requests based on natural language instructions.**
